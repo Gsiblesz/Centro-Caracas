@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Panel estático para la planta Centro Caracas con cronómetros y registro hacia Google Sheets via Apps Script.">
+  <title>Control de tiempos de producción · Pan de Tata · Elaborado por Gerardo Siblesz</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&family=Manrope:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="page-header">
+    <div class="header-copy">
+      <p class="eyebrow">Control de tiempos de producción · Pan de Tata</p>
+      <h1>Control de tiempos de producción</h1>
+      <p class="lede">Elaborado por Gerardo Siblesz · Cronómetros sincronizados y envío directo a Google Sheets.</p>
+    </div>
+    <form class="shift-form" id="shiftForm" autocomplete="off">
+      <label class="shift-field shift-field--date">
+        <span>Fecha</span>
+        <input type="date" name="shiftDate" required>
+      </label>
+      <label class="shift-field">
+        <span>Lote del día</span>
+        <input type="text" name="dailyLot" placeholder="LD-20260112">
+      </label>
+      <label class="shift-field">
+        <span>Producto / tipo de pan</span>
+        <input type="text" name="producto" placeholder="Hamburguesa">
+      </label>
+      
+      <label class="shift-field">
+        <span>Responsable</span>
+        <input type="text" name="responsable" placeholder="Nombre del encargado">
+      </label>
+      <label class="shift-field shift-field--compact">
+        <span>Temp. ambiente (°C)</span>
+        <input type="number" name="ambientTemp" step="0.1" placeholder="25">
+      </label>
+      <label class="shift-field shift-field--compact">
+        <span>Humedad (%)</span>
+        <input type="number" name="ambientHumidity" step="0.1" placeholder="60">
+      </label>
+      <label class="shift-field">
+        <span>Notas de turno</span>
+        <input type="text" name="shiftNotes" placeholder="Observaciones breves">
+      </label>
+    </form>
+  </header>
+
+  <main>
+    <div class="tab-shell">
+      <div class="tab-bar" role="tablist">
+        <button class="tab-button is-active" data-tab-target="mixers" role="tab">Amasadoras</button>
+        <button class="tab-button" data-tab-target="mesa" role="tab">Mesa</button>
+        <button class="tab-button" data-tab-target="fermenter" role="tab">Fermentadora</button>
+        <button class="tab-button" data-tab-target="ovens" role="tab">Horno</button>
+      </div>
+
+      <section class="tab-panel is-active" data-tab-panel="mixers">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">Tres equipos</p>
+            <h2>Amasadoras</h2>
+            <p class="subhead">Un solo lote diario, elige la amasadora y registra hielo, tiempos por etapa y muertos.</p>
+          </div>
+          <button class="ghost-button" data-clear-history="mixers">Limpiar historial</button>
+        </div>
+        <div class="card-grid">
+          <article class="card card--mixer" data-card="mixer-1" data-panel="mixers" data-mixer-cycles="3">
+            <header class="card-head">
+              <div>
+                <p class="eyebrow">Equipo seleccionable</p>
+                <h3>Amasadora · 3 ciclos</h3>
+              </div>
+              <span class="status-pill" data-summary-status>En espera</span>
+            </header>
+            <form class="card-form" autocomplete="off">
+              <div class="form-grid">
+                <label>
+                  <span>Amasadora</span>
+                  <select name="equipo">
+                    <option value="A1">Amasadora 1</option>
+                    <option value="A2">Amasadora 2</option>
+                    <option value="A3">Amasadora 3</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Hielo</span>
+                  <select name="hielo">
+                    <option value="No">No</option>
+                    <option value="Si">Sí</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Tipo de masa</span>
+                  <select name="tipoMasa">
+                    <option value="Tradicional">Tradicional</option>
+                    <option value="Brioche">Brioche</option>
+                    <option value="Mantequilla">Mantequilla</option>
+                    <option value="Otra">Otra</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Temp. masa (°C)</span>
+                  <input type="number" name="tempMasa" step="0.1">
+                </label>
+                <label>
+                  <span>Peso masa (kg)</span>
+                  <input type="number" name="pesoMasa" step="0.1">
+                </label>
+                <label class="span-2">
+                  <span>Notas</span>
+                  <textarea name="notas" rows="2" placeholder="Observaciones"></textarea>
+                </label>
+              </div>
+
+              <div class="stage-grid" data-multi-stage>
+                <div class="stage-card" data-stage-id="sponge">
+                  <div class="stage-head">
+                    <div>
+                      <p class="eyebrow">Etapa 1</p>
+                      <h4 data-stage-label>Esponja</h4>
+                    </div>
+                    <span class="status-pill" data-status-pill>En espera</span>
+                  </div>
+                  <dl class="stage-times">
+                    <div>
+                      <dt>Inicio</dt>
+                      <dd data-stage-start>--:--:--</dd>
+                    </div>
+                    <div>
+                      <dt>Fin</dt>
+                      <dd data-stage-end>--:--:--</dd>
+                    </div>
+                    <div>
+                      <dt>T. real</dt>
+                      <dd data-stage-timer>00:00:00</dd>
+                    </div>
+                  </dl>
+                  <div class="stage-actions">
+                    <button type="button" class="primary" data-stage-start-btn>Iniciar</button>
+                    <button type="button" data-stage-pause-btn>Pausa</button>
+                    <button type="button" data-stage-finish-btn>Finalizar</button>
+                    <button type="button" class="ghost" data-stage-reset-btn>Reset</button>
+                  </div>
+                </div>
+
+                <div class="stage-card" data-stage-id="dough">
+                  <div class="stage-head">
+                    <div>
+                      <p class="eyebrow">Etapa 2</p>
+                      <h4 data-stage-label>Masa</h4>
+                    </div>
+                    <span class="status-pill" data-status-pill>En espera</span>
+                  </div>
+                  <dl class="stage-times">
+                    <div>
+                      <dt>Inicio</dt>
+                      <dd data-stage-start>--:--:--</dd>
+                    </div>
+                    <div>
+                      <dt>Fin</dt>
+                      <dd data-stage-end>--:--:--</dd>
+                    </div>
+                    <div>
+                      <dt>T. real</dt>
+                      <dd data-stage-timer>00:00:00</dd>
+                    </div>
+                  </dl>
+                  <div class="stage-actions">
+                    <button type="button" class="primary" data-stage-start-btn>Iniciar</button>
+                    <button type="button" data-stage-pause-btn>Pausa</button>
+                    <button type="button" data-stage-finish-btn>Finalizar</button>
+                    <button type="button" class="ghost" data-stage-reset-btn>Reset</button>
+                  </div>
+                </div>
+
+                <div class="stage-card" data-stage-id="butter">
+                  <div class="stage-head">
+                    <div>
+                      <p class="eyebrow">Etapa 3</p>
+                      <h4 data-stage-label>Mantequilla</h4>
+                    </div>
+                    <span class="status-pill" data-status-pill>En espera</span>
+                  </div>
+                  <dl class="stage-times">
+                    <div>
+                      <dt>Inicio</dt>
+                      <dd data-stage-start>--:--:--</dd>
+                    </div>
+                    <div>
+                      <dt>Fin</dt>
+                      <dd data-stage-end>--:--:--</dd>
+                    </div>
+                    <div>
+                      <dt>T. real</dt>
+                      <dd data-stage-timer>00:00:00</dd>
+                    </div>
+                  </dl>
+                  <div class="stage-actions">
+                    <button type="button" class="primary" data-stage-start-btn>Iniciar</button>
+                    <button type="button" data-stage-pause-btn>Pausa</button>
+                    <button type="button" data-stage-finish-btn>Finalizar</button>
+                    <button type="button" class="ghost" data-stage-reset-btn>Reset</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="dead-grid">
+                <div>
+                  <p class="eyebrow">T. muerto 1</p>
+                  <strong data-dead-display="1">--:--:--</strong>
+                </div>
+                <div>
+                  <p class="eyebrow">T. muerto 2</p>
+                  <strong data-dead-display="2">--:--:--</strong>
+                </div>
+                <div>
+                  <p class="eyebrow">Total muertos</p>
+                  <strong data-dead-total>00:00:00</strong>
+                </div>
+              </div>
+
+              <div class="total-row">
+                <div>
+                  <p class="eyebrow">Total máquina</p>
+                  <strong data-total-machine>00:00:00</strong>
+                </div>
+                <div>
+                  <p class="eyebrow">Total amasadora</p>
+                  <strong data-total-overall>00:00:00</strong>
+                </div>
+              </div>
+
+              <div class="form-actions">
+                <button type="submit" class="primary">Guardar en Sheets</button>
+              </div>
+            </form>
+          </article>
+        </div>
+        <div class="history" data-history="mixers"></div>
+      </section>
+
+      <section class="tab-panel" data-tab-panel="mesa">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">Dos líneas</p>
+            <h2>Mesa de trabajo</h2>
+            <p class="subhead">Un solo lote diario; selecciona la mesa que usas.</p>
+          </div>
+          <button class="ghost-button" data-clear-history="mesa">Limpiar historial</button>
+        </div>
+        <div class="card-grid card-grid--wide">
+          <article class="card" data-card="mesa-1" data-panel="mesa">
+            <header class="card-head">
+              <div>
+                <p class="eyebrow">Mesa seleccionable</p>
+                <h3>Mesa</h3>
+              </div>
+              <span class="status-pill" data-status-pill>En espera</span>
+            </header>
+            <div class="timer" data-timer-display>00:00:00</div>
+            <div class="timer-actions">
+              <button type="button" class="primary" data-start>Iniciar</button>
+              <button type="button" data-pause>Pausa</button>
+              <button type="button" data-finish>Finalizar</button>
+              <button type="button" class="ghost" data-reset>Reset</button>
+            </div>
+            <form class="card-form" autocomplete="off">
+              <div class="form-grid">
+                <label>
+                  <span>Mesa</span>
+                  <select name="mesaSeleccion">
+                    <option value="M1">Mesa 1</option>
+                    <option value="M2">Mesa 2</option>
+                  </select>
+                </label>
+                <div class="pair-row">
+                  <label>
+                    <span>Personas mín.</span>
+                    <input type="number" name="personasMin" min="1" step="1" placeholder="2">
+                  </label>
+                  <label>
+                    <span>Personas máx.</span>
+                    <input type="number" name="personasMax" min="1" step="1" placeholder="4">
+                  </label>
+                </div>
+                <label>
+                  <span>Notas</span>
+                  <textarea name="notas" rows="2" placeholder="Observaciones"></textarea>
+                </label>
+              </div>
+              <div class="form-actions">
+                <button type="submit" class="primary">Guardar en Sheets</button>
+              </div>
+            </form>
+          </article>
+        </div>
+        <div class="history" data-history="mesa"></div>
+      </section>
+
+      <section class="tab-panel" data-tab-panel="fermenter">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">Capacidad variable</p>
+            <h2>Fermentadora</h2>
+            <p class="subhead">Una cámara, varios carritos en paralelo. Las variables de cámara aplican a todas las fichas.</p>
+          </div>
+          <div class="panel-actions">
+            <button class="ghost-button" data-clear-history="fermenter">Limpiar historial</button>
+          </div>
+        </div>
+        <form class="shift-form" id="fermenterEnv" autocomplete="off">
+          <label class="shift-field">
+            <span>Temp. cámara (°C)</span>
+            <input type="number" name="tempCamara" step="0.1" placeholder="28">
+          </label>
+          <label class="shift-field">
+            <span>Humedad cámara (%)</span>
+            <input type="number" name="humedadCamara" step="0.1" placeholder="75">
+          </label>
+        </form>
+        <div class="fermenter-grid" id="fermenterGrid">
+          <article class="card card--fermenter" data-card="fermento-1" data-panel="fermenter">
+            <header class="card-head">
+              <div>
+                <p class="eyebrow">Fermento</p>
+                <h3 data-fermenter-title>Fermentación</h3>
+              </div>
+              <span class="status-pill" data-status-pill>En espera</span>
+            </header>
+            <div class="timer" data-timer-display>00:00:00</div>
+            <div class="timer-actions">
+              <button type="button" class="primary" data-start>Iniciar</button>
+              <button type="button" data-pause>Pausa</button>
+              <button type="button" data-finish>Finalizar</button>
+              <button type="button" class="ghost" data-reset>Reset</button>
+            </div>
+            <form class="card-form" autocomplete="off">
+              <div class="form-grid">
+                <label class="span-2">
+                  <span>Notas</span>
+                  <textarea name="notas" rows="2" placeholder="Observaciones"></textarea>
+                </label>
+              </div>
+              <div class="form-actions">
+                <button type="submit" class="primary">Guardar en Sheets</button>
+              </div>
+            </form>
+          </article>
+        </div>
+        <div class="history" data-history="fermenter"></div>
+      </section>
+
+      <section class="tab-panel" data-tab-panel="ovens">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">Tres hornos</p>
+            <h2>Horno rotativo</h2>
+            <p class="subhead">Un lote diario, selecciona el horno y registra hasta tres productos/lotes.</p>
+          </div>
+          <button class="ghost-button" data-clear-history="ovens">Limpiar historial</button>
+        </div>
+        <div class="card-grid card-grid--wide">
+          <article class="card card--oven" data-card="horno-1" data-panel="ovens">
+            <header class="card-head">
+              <div>
+                <p class="eyebrow">Horno seleccionable</p>
+                <h3>Rotativo</h3>
+              </div>
+              <span class="status-pill" data-status-pill>En espera</span>
+            </header>
+            <form class="card-form" autocomplete="off">
+              <div class="form-grid">
+                <label>
+                  <span>Horno</span>
+                  <select name="horno">
+                    <option value="H1">Horno 1</option>
+                    <option value="H2">Horno 2</option>
+                    <option value="H3">Horno 3</option>
+                  </select>
+                </label>
+                <label class="span-2">
+                  <span>Temp. horno (°C)</span>
+                  <input type="number" name="tempHorno" step="1" placeholder="220">
+                </label>
+              </div>
+              <div class="timer" data-timer-display>00:00:00</div>
+              <div class="timer-actions">
+                <button type="button" class="primary" data-start>Iniciar</button>
+                <button type="button" data-pause>Pausa</button>
+                <button type="button" data-finish>Finalizar</button>
+                <button type="button" class="ghost" data-reset>Reset</button>
+              </div>
+              <div class="form-grid">
+                <label class="span-2">
+                  <span>Notas</span>
+                  <textarea name="notas" rows="2" placeholder="Observaciones"></textarea>
+                </label>
+              </div>
+              <div class="form-actions">
+                <button type="submit" class="primary">Guardar en Sheets</button>
+              </div>
+            </form>
+          </article>
+        </div>
+        <div class="history" data-history="ovens"></div>
+      </section>
+    </div>
+  </main>
+
+  <template id="fermenterTemplate">
+    <article class="card card--fermenter" data-panel="fermenter">
+      <header class="card-head">
+        <div>
+          <p class="eyebrow">Fermento</p>
+          <h3 data-fermenter-title>Fermentación</h3>
+        </div>
+        <span class="status-pill" data-status-pill>En espera</span>
+      </header>
+      <div class="timer" data-timer-display>00:00:00</div>
+      <div class="timer-actions">
+        <button type="button" class="primary" data-start>Iniciar</button>
+        <button type="button" data-pause>Pausa</button>
+        <button type="button" data-finish>Finalizar</button>
+        <button type="button" class="ghost" data-reset>Reset</button>
+      </div>
+      <form class="card-form" autocomplete="off">
+        <div class="form-grid">
+          <label class="span-2">
+            <span>Notas</span>
+            <textarea name="notas" rows="2" placeholder="Observaciones"></textarea>
+          </label>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="primary">Guardar en Sheets</button>
+        </div>
+      </form>
+    </article>
+  </template>
+
+  <script src="app.js"></script>
+</body>
+</html>
