@@ -39,7 +39,15 @@ main {
   margin: 48px auto 32px;
   display: grid;
   gap: 24px;
-  grid-template-columns: 1fr;
+  grid-template-columns: 2.2fr 1fr;
+  align-items: start;
+}
+
+.header-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-start;
+  padding-top: 6px;
 }
 
 .header-copy h1 {
@@ -266,9 +274,14 @@ button.secondary {
 
 button.ghost,
 .ghost-button {
-  background: transparent;
-  border: 1px dashed var(--border);
-  color: var(--muted);
+  background: linear-gradient(120deg, var(--accent) 0%, var(--accent-strong) 100%);
+  border: 1px solid var(--accent-strong);
+  color: #0d1018;
+  box-shadow: 0 10px 24px rgba(255, 170, 44, 0.22);
+}
+
+.ghost-button:hover {
+  transform: translateY(-1px);
 }
 
 .timer-actions button {
