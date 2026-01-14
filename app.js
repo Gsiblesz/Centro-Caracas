@@ -384,6 +384,8 @@ function wireCard(card) {
   if (form) {
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
+      if (form.dataset.submitting === 'true') return;
+      form.dataset.submitting = 'true';
       const payload = buildPayload({ card, panel, cardId, timer });
       attachLotTransition(payload);
       const historyEntry = formatHistoryEntry(payload);
@@ -396,6 +398,8 @@ function wireCard(card) {
       } catch (err) {
         console.error('No se pudo enviar a Sheets', err);
         addHistory(panel, `${historyEntry} · Error al enviar`);
+      } finally {
+        delete form.dataset.submitting;
       }
     });
   }

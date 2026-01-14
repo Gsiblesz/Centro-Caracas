@@ -1,6 +1,6 @@
 # Panel de producción Centro Caracas
 
-Interfaz estática para la sede Centro en Caracas: tres amasadoras, dos líneas de mesa, fermentadora con carritos simultáneos (temperatura y humedad de cámara compartidas) y tres hornos rotativos con hasta tres productos/lotes por carga. Cada ficha tiene cronómetro, captura de variables y envío a Google Sheets vía Apps Script.
+Interfaz estática para la sede Centro en Caracas: tres amasadoras, dos líneas de mesa, fermentadora con carritos simultáneos (temperatura y humedad de cámara compartidas) y tres hornos rotativos con hasta tres productos/lotes por carga. Cada ficha tiene cronómetro, captura de variables y envío a Google Sheets vía Apps Script. La herramienta está pensada para seguir un mismo lote a lo largo de todos sus procesos y medir los tiempos entre etapas.
 
 ## Estructura
 - index.html: marcado y pestañas.
