@@ -278,10 +278,18 @@ button.ghost,
   border: 1px solid var(--accent-strong);
   color: #0d1018;
   box-shadow: 0 10px 24px rgba(255, 170, 44, 0.22);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 18px;
+  border-radius: 14px;
+  text-decoration: none;
+  font-weight: 700;
 }
 
 .ghost-button:hover {
   transform: translateY(-1px);
+  text-decoration: none;
 }
 
 .timer-actions button {
