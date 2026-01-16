@@ -163,7 +163,7 @@ main {
   border-radius: 10px;
   padding: 10px 12px;
   color: var(--text);
-  font-size: 14px;
+  font-size: 16px;
 }
 
 .shift-field--compact input {
@@ -254,6 +254,8 @@ main {
   border-radius: 18px;
   padding: 16px;
   box-shadow: var(--shadow);
+  font-size: 16px;
+
 }
 
 .card-head {
@@ -312,6 +314,7 @@ button {
   font-weight: 600;
   border-radius: 12px;
   padding: 12px;
+  font-size: 16px;
   transition: transform 0.08s ease, box-shadow 0.2s ease, background 0.2s ease;
 }
 
@@ -381,7 +384,7 @@ button.ghost,
   border-radius: 12px;
   padding: 10px 12px;
   color: var(--text);
-  font-size: 14px;
+  font-size: 16px;
   resize: vertical;
 }
 
