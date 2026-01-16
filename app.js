@@ -15,6 +15,7 @@ const state = {
 };
 
 document.addEventListener('DOMContentLoaded', () => {
+  setupLockScreen();
   setShiftDefaults();
   setupDailyLotPropagation();
   setupTabs();
@@ -22,6 +23,42 @@ document.addEventListener('DOMContentLoaded', () => {
   setupFermenter();
   wireHistoryClears();
 });
+
+function setupLockScreen() {
+  const lock = document.getElementById('lockScreen');
+  const form = document.getElementById('lockForm');
+  const input = lock ? lock.querySelector('input[name="lockPassword"]') : null;
+  const errorEl = lock ? lock.querySelector('[data-lock-error]') : null;
+  const body = document.body;
+  const KEY = 'pandetata';
+
+  if (!lock || !form) return;
+
+  body.classList.add('is-locked');
+
+  const attemptUnlock = () => {
+    const value = (input?.value || '').trim();
+    if (value && value.toLowerCase() === KEY) {
+      lock.setAttribute('hidden', 'true');
+      body.classList.remove('is-locked');
+      if (errorEl) errorEl.textContent = '';
+      return true;
+    }
+    if (errorEl) errorEl.textContent = 'Clave incorrecta. Intenta de nuevo.';
+    if (input) {
+      input.value = '';
+      input.focus();
+    }
+    return false;
+  };
+
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    attemptUnlock();
+  });
+
+  if (input) input.focus();
+}
 
 class Timer {
   constructor(displayEl, pillEl) {

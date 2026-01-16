@@ -11,6 +11,22 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+  <div class="lock-screen" id="lockScreen" role="dialog" aria-modal="true">
+    <div class="lock-panel">
+      <p class="eyebrow">Acceso requerido</p>
+      <h2>Ingresa la clave</h2>
+      <p class="subhead">Solo personal autorizado puede operar esta interfaz.</p>
+      <form class="lock-form" id="lockForm" autocomplete="off">
+        <label>
+          <span>Clave</span>
+          <input type="password" name="lockPassword" placeholder="Escribe la clave" required>
+        </label>
+        <p class="lock-error" data-lock-error></p>
+        <button type="submit" class="primary">Desbloquear</button>
+      </form>
+    </div>
+  </div>
+
   <header class="page-header">
     <div class="header-copy">
       <p class="eyebrow">Control de tiempos de producción · Pan de Tata</p>

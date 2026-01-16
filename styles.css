@@ -29,6 +29,65 @@ body {
   min-height: 100vh;
 }
 
+body.is-locked main,
+body.is-locked header,
+body.is-locked .tab-shell {
+  filter: blur(2px);
+  pointer-events: none;
+  user-select: none;
+}
+
+.lock-screen {
+  position: fixed;
+  inset: 0;
+  background: rgba(13, 16, 24, 0.9);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  z-index: 999;
+}
+
+.lock-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 20px;
+  width: min(360px, 90vw);
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 10px;
+}
+
+.lock-form {
+  display: grid;
+  gap: 10px;
+}
+
+.lock-form label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.lock-form input {
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+  color: var(--text);
+  font-size: 15px;
+}
+
+.lock-error {
+  color: var(--negative);
+  min-height: 18px;
+  margin: 0;
+  font-size: 13px;
+}
+
 main {
   width: min(1200px, 94vw);
   margin: 0 auto 80px;
