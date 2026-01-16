@@ -37,9 +37,9 @@ function setupLockScreen() {
   body.classList.add('is-locked');
 
   const attemptUnlock = () => {
-    const value = (input?.value || '').trim();
+    const value = input ? input.value.trim() : '';
     if (value && value.toLowerCase() === KEY) {
-      lock.setAttribute('hidden', 'true');
+      lock.remove();
       body.classList.remove('is-locked');
       if (errorEl) errorEl.textContent = '';
       return true;
