@@ -201,6 +201,7 @@ function buildMixerRow(payload) {
   const dead1 = msToHms(deadTimesMs[0]);
   const dead2 = msToHms(deadTimesMs[1]);
   const deadTotal = msToHms(totals.deadTotalMs || totals.deadTotal || '');
+  const deltaMs = transition && transition.deltaMs !== undefined && transition.deltaMs !== null ? msToHms(transition.deltaMs) : 'NA';
   return [
     safeValue(payload.timestamp),
     safeValue(shift.shiftDate),
@@ -227,7 +228,7 @@ function buildMixerRow(payload) {
     deadTotal,
     msToHms(totals.machineTotalMs),
     msToHms(totals.overallMs),
-    msToHms(transition.deltaMs),
+    deltaMs,
     safeValue(transition.from),
     safeValue(transition.to),
     safeValue(form.notas),

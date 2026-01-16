@@ -1,6 +1,6 @@
 'use strict';
 
-const API_URL = 'https://script.google.com/macros/s/AKfycby0lPYSvoSdZNqH1mKzP3ugUr0i-YfZaQjNm9JOJ20Xs6SL-csNXo5VfcnkS3dWm_gK/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbwLcR2mEfY2i-MIxc3JO6mcS5JL2EoE4rjftf3dvfxt6ny5gqmaD0fqcdSRdyfBdYqp/exec';
 
 const state = {
   timers: {},
