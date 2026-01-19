@@ -1,7 +1,8 @@
 'use strict';
 
 const API_URL = 'https://script.google.com/macros/s/AKfycbwLcR2mEfY2i-MIxc3JO6mcS5JL2EoE4rjftf3dvfxt6ny5gqmaD0fqcdSRdyfBdYqp/exec';
-const BACKEND_URL = 'https://centro-caracas-backend.onrender.com/registros';
+const BACKEND_BASE_URL = 'https://centro-caracas-backend.onrender.com';
+const BACKEND_POST_URL = `${BACKEND_BASE_URL}/registros`;
 const BACKEND_API_KEY = 'npg_h1wfyYnG2RDz';
 
 const state = {
@@ -14,6 +15,9 @@ const state = {
   },
   fermenterCount: 0,
   lotTracker: {},
+  controlChart: null,
+  resultsMode: 'cards',
+  resultsRecords: [],
 };
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -24,6 +28,8 @@ document.addEventListener('DOMContentLoaded', () => {
   setupStaticCards();
   setupFermenter();
   wireHistoryClears();
+  setupResultsView();
+  wireResultsShortcut();
 });
 
 function setupLockScreen() {
@@ -175,16 +181,24 @@ function setupDailyLotPropagation() {
 
 function setupTabs() {
   const buttons = Array.from(document.querySelectorAll('[data-tab-target]'));
-  const panels = Array.from(document.querySelectorAll('[data-tab-panel]'));
   buttons.forEach((button) => {
     button.addEventListener('click', () => {
       const target = button.getAttribute('data-tab-target');
-      buttons.forEach((b) => b.classList.toggle('is-active', b === button));
-      panels.forEach((panel) => {
-        const key = panel.getAttribute('data-tab-panel');
-        panel.classList.toggle('is-active', key === target);
-      });
+      activateTab(target);
     });
+  });
+}
+
+function activateTab(targetKey) {
+  const buttons = document.querySelectorAll('[data-tab-target]');
+  const panels = document.querySelectorAll('[data-tab-panel]');
+  buttons.forEach((button) => {
+    const key = button.getAttribute('data-tab-target');
+    button.classList.toggle('is-active', key === targetKey);
+  });
+  panels.forEach((panel) => {
+    const key = panel.getAttribute('data-tab-panel');
+    panel.classList.toggle('is-active', key === targetKey);
   });
 }
 
@@ -291,6 +305,22 @@ function wireMixerCard(card) {
     if (overallDisplay) overallDisplay.textContent = formatDuration(overall);
   };
 
+  const forceFinishOtherStages = (currentStage) => {
+    let anyFinished = false;
+    stages.forEach((other) => {
+      if (other !== currentStage && other.timer.running) {
+        other.timer.finish();
+        other.updateTexts?.();
+        anyFinished = true;
+      }
+    });
+    if (anyFinished) {
+      recalcDeadTimes();
+      updateTotals();
+      recalcSummary();
+    }
+  };
+
   stageEls.forEach((stageEl) => {
     const stageId = stageEl.getAttribute('data-stage-id');
     const timerDisplay = stageEl.querySelector('[data-stage-timer]');
@@ -317,8 +347,16 @@ function wireMixerCard(card) {
       stage.endEl.textContent = stage.timer.endAt ? formatTime(new Date(stage.timer.endAt).toISOString()) : '--:--:--';
     };
 
+    stage.updateTexts = () => {
+      updateStartText();
+      updateEndText();
+    };
+    stage.updateStartText = updateStartText;
+    stage.updateEndText = updateEndText;
+
     if (startBtn) {
       startBtn.addEventListener('click', () => {
+        forceFinishOtherStages(stage);
         timer.start();
         updateStartText();
         const currentIndex = stages.indexOf(stage);
@@ -596,7 +634,7 @@ async function sendToSheets(payload) {
 }
 
 async function sendToBackend(payload) {
-  if (!BACKEND_URL) {
+  if (!BACKEND_POST_URL) {
     console.warn('Define BACKEND_URL para habilitar el envío al backend.');
     return;
   }
@@ -604,7 +642,7 @@ async function sendToBackend(payload) {
   if (BACKEND_API_KEY) {
     headers['x-api-key'] = BACKEND_API_KEY;
   }
-  const response = await fetch(BACKEND_URL, {
+  const response = await fetch(BACKEND_POST_URL, {
     method: 'POST',
     headers,
     body: JSON.stringify(payload),
@@ -693,6 +731,18 @@ function formatDuration(ms = 0) {
   return `${hours}:${minutes}:${seconds}`;
 }
 
+function wireResultsShortcut() {
+  const button = document.getElementById('openResultsTab');
+  if (!button) return;
+  button.addEventListener('click', () => {
+    activateTab('results');
+    const panel = document.getElementById('resultsPanel');
+    if (panel) {
+      panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  });
+}
+
 function formatTime(isoString) {
   if (!isoString) return '';
   const date = new Date(isoString);
@@ -700,4 +750,374 @@ function formatTime(isoString) {
   const mm = date.getMinutes().toString().padStart(2, '0');
   const ss = date.getSeconds().toString().padStart(2, '0');
   return `${hh}:${mm}:${ss}`;
+}
+
+function setupResultsView() {
+  const panel = document.getElementById('resultsPanel');
+  if (!panel) return;
+  const fromInput = document.getElementById('resultsFrom');
+  const toInput = document.getElementById('resultsTo');
+  const refreshBtn = document.getElementById('resultsRefresh');
+  const chartBtn = document.getElementById('resultsChartRefresh');
+  const panelSelect = document.getElementById('resultsPanelFilter');
+  const metricSelect = document.getElementById('resultsMetric');
+  const cardsBtn = document.getElementById('resultsShowCards');
+  const chartsBtn = document.getElementById('resultsShowCharts');
+
+  const today = new Date();
+  const weekAgo = new Date(today);
+  weekAgo.setDate(weekAgo.getDate() - 7);
+  if (fromInput && !fromInput.value) fromInput.value = weekAgo.toISOString().slice(0, 10);
+  if (toInput && !toInput.value) toInput.value = today.toISOString().slice(0, 10);
+
+  const reloadAll = () => {
+    refreshResultsList();
+    if (state.resultsMode === 'charts') {
+      refreshControlChart();
+    }
+  };
+
+  if (refreshBtn) refreshBtn.addEventListener('click', refreshResultsList);
+  if (chartBtn) chartBtn.addEventListener('click', () => {
+    setResultsMode('charts');
+    refreshControlChart();
+  });
+  if (panelSelect) panelSelect.addEventListener('change', reloadAll);
+  if (metricSelect) metricSelect.addEventListener('change', () => refreshControlChart());
+  if (cardsBtn) cardsBtn.addEventListener('click', () => setResultsMode('cards'));
+  if (chartsBtn) chartsBtn.addEventListener('click', () => setResultsMode('charts'));
+
+  setResultsMode('cards');
+  reloadAll();
+}
+
+function getResultsFilters() {
+  const panel = document.getElementById('resultsPanelFilter');
+  const fromInput = document.getElementById('resultsFrom');
+  const toInput = document.getElementById('resultsTo');
+  return {
+    panel: panel ? panel.value : 'all',
+    desde: fromInput?.value || '',
+    hasta: toInput?.value || '',
+  };
+}
+
+function setResultsMode(mode) {
+  state.resultsMode = mode;
+  document.querySelectorAll('[data-results-area]').forEach((area) => {
+    area.classList.toggle('is-active', area.getAttribute('data-results-area') === mode);
+  });
+  const cardsBtn = document.getElementById('resultsShowCards');
+  const chartsBtn = document.getElementById('resultsShowCharts');
+  if (cardsBtn) cardsBtn.classList.toggle('is-active', mode === 'cards');
+  if (chartsBtn) chartsBtn.classList.toggle('is-active', mode === 'charts');
+  if (mode === 'charts') {
+    refreshControlChart();
+  }
+}
+
+async function refreshResultsList() {
+  try {
+    showResultsStatus('Cargando registros...');
+    const filters = getResultsFilters();
+    const [records, summary] = await Promise.all([
+      loadBackendRecords(filters),
+      loadSummaryMetrics(filters),
+    ]);
+    state.resultsRecords = records;
+    renderResultsCards(records);
+    renderSummaryCards(summary);
+    showResultsStatus(records.length ? '' : 'Sin registros para los filtros seleccionados.');
+  } catch (err) {
+    console.error('Resultados · lista', err);
+    showResultsStatus(`Error al cargar resultados: ${err?.message || err}`);
+  }
+}
+
+async function refreshControlChart() {
+  try {
+    const filters = getResultsFilters();
+    const metricSelect = document.getElementById('resultsMetric');
+    const metric = metricSelect ? metricSelect.value : 'overallMs';
+    showResultsStatus('Calculando gráfica de control...');
+    const chartData = await loadControlChart(filters, metric);
+    renderControlChart(chartData, metric);
+    showResultsStatus('');
+  } catch (err) {
+    console.error('Resultados · chart', err);
+    showResultsStatus(`Error al generar la gráfica: ${err?.message || err}`);
+  }
+}
+
+async function loadBackendRecords(filters) {
+  if (!BACKEND_BASE_URL) throw new Error('Backend no configurado');
+  const params = new URLSearchParams();
+  if (filters.panel && filters.panel !== 'all') params.set('panel', filters.panel);
+  if (filters.desde) params.set('desde', filters.desde);
+  if (filters.hasta) params.set('hasta', filters.hasta);
+  params.set('take', '200');
+  const url = `${BACKEND_BASE_URL}/registros?${params.toString()}`;
+  const response = await fetch(url, { headers: buildBackendHeaders() });
+  if (!response.ok) {
+    const text = await response.text().catch(() => '');
+    throw new Error(text || `HTTP ${response.status}`);
+  }
+  return response.json();
+}
+
+async function loadSummaryMetrics(filters) {
+  if (!BACKEND_BASE_URL) return null;
+  const params = new URLSearchParams();
+  if (filters.panel && filters.panel !== 'all') params.set('panel', filters.panel);
+  const url = `${BACKEND_BASE_URL}/registros/metrics?${params.toString()}`;
+  const response = await fetch(url, { headers: buildBackendHeaders() });
+  if (!response.ok) return null;
+  return response.json();
+}
+
+async function loadControlChart(filters, metric) {
+  if (!BACKEND_BASE_URL) throw new Error('Backend no configurado');
+  const params = new URLSearchParams();
+  if (filters.panel && filters.panel !== 'all') params.set('panel', filters.panel);
+  params.set('metric', metric || 'overallMs');
+  const url = `${BACKEND_BASE_URL}/registros/control-chart?${params.toString()}`;
+  const response = await fetch(url, { headers: buildBackendHeaders() });
+  if (!response.ok) {
+    const text = await response.text().catch(() => '');
+    throw new Error(text || `HTTP ${response.status}`);
+  }
+  return response.json();
+}
+
+function renderResultsCards(records = []) {
+  const grid = document.getElementById('resultsCardGrid');
+  if (!grid) return;
+  if (!records.length) {
+    grid.innerHTML = `
+      <div class="result-card">
+        <p class="eyebrow">Sin registros</p>
+        <p>Ajusta los filtros o guarda un nuevo lote para ver tarjetas.</p>
+      </div>`;
+    return;
+  }
+  grid.innerHTML = records
+    .map((row) => renderResultCard(row))
+    .join('');
+}
+
+function renderResultCard(row) {
+  const dateLabel = row.shiftDate ? new Date(row.shiftDate).toLocaleDateString('es-VE') : '--';
+  const panelLabel = getPanelLabel(row.panel);
+  const lotLabel = row.lotId || row.lote || row.data?.shift?.dailyLot || 'Sin lote';
+  const observation = extractObservation(row);
+  const variables = extractVariableBadges(row);
+  return `
+    <article class="result-card">
+      <header>
+        <div>
+          <p class="eyebrow">${dateLabel}</p>
+          <h3>${panelLabel} · ${row.unit}</h3>
+        </div>
+        <span class="result-chip">${lotLabel}</span>
+      </header>
+      <div class="result-metrics">
+        <div><dt>Total</dt><dd>${formatDuration(row.overallMs || 0)}</dd></div>
+        <div><dt>Máquina</dt><dd>${formatDuration(row.durationMs || 0)}</dd></div>
+        <div><dt>Muertos</dt><dd>${formatDuration(row.deadMs || 0)}</dd></div>
+      </div>
+      <div class="result-meta">
+        <div>
+          <p class="eyebrow">Observaciones</p>
+          <p>${observation}</p>
+        </div>
+        <div>
+          <p class="eyebrow">Variables</p>
+          <div class="result-variables">
+            ${variables.map((text) => `<span>${text}</span>`).join('') || '<span>Sin variables registradas</span>'}
+          </div>
+        </div>
+      </div>
+    </article>
+  `;
+}
+
+function extractObservation(row) {
+  const form = row?.data?.form || {};
+  const shift = row?.data?.shift || {};
+  const env = row?.data?.env || {};
+  return (
+    form.notas ||
+    form.observaciones ||
+    shift.shiftNotes ||
+    env.notas ||
+    'Sin observaciones registradas.'
+  );
+}
+
+function extractVariableBadges(row) {
+  const values = [];
+  const ignore = new Set(['notas', 'observaciones', 'timestamp', 'unit', 'panel']);
+  const collect = (obj, prefix = '') => {
+    if (!obj) return;
+    Object.entries(obj).forEach(([key, value]) => {
+      if (ignore.has(key) || value === '' || value === null || typeof value === 'object') return;
+      const label = prefix ? `${prefix} ${humanizeKey(key)}` : humanizeKey(key);
+      values.push(`${label}: ${value}`);
+    });
+  };
+  collect(row?.data?.shift, 'Turno');
+  collect(row?.data?.form);
+  collect(row?.data?.env, 'Cámara');
+  return values.slice(0, 10);
+}
+
+function getPanelLabel(panel) {
+  const map = {
+    mixers: 'Amasadora',
+    mesa: 'Mesa',
+    fermenter: 'Fermentadora',
+    ovens: 'Horno',
+  };
+  return map[panel] || panel || 'Proceso';
+}
+
+function humanizeKey(key = '') {
+  return key
+    .replace(/([A-Z])/g, ' $1')
+    .replace(/_/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/^./, (char) => char.toUpperCase());
+}
+
+function renderSummaryCards(summary) {
+  if (!summary) return;
+  const apply = (key, metric) => {
+    const avgEl = document.querySelector(`[data-summary="${key}-avg"]`);
+    const minEl = document.querySelector(`[data-summary="${key}-min"]`);
+    const maxEl = document.querySelector(`[data-summary="${key}-max"]`);
+    if (avgEl) avgEl.textContent = metric?.avg ? formatDuration(metric.avg) : '—';
+    if (minEl) minEl.textContent = metric?.min ? formatDuration(metric.min) : '—';
+    if (maxEl) maxEl.textContent = metric?.max ? formatDuration(metric.max) : '—';
+  };
+  apply('duration', summary.duration);
+  apply('dead', summary.dead);
+  apply('overall', summary.overall);
+  const countEl = document.querySelector('[data-summary="count"]');
+  if (countEl) countEl.textContent = summary.count ?? '0';
+}
+
+function renderControlChart(data, metric) {
+  const canvas = document.getElementById('controlChart');
+  if (!canvas || !window.Chart) return;
+  if (!data || !Array.isArray(data.points) || !data.points.length) {
+    if (state.controlChart) {
+      state.controlChart.destroy();
+      state.controlChart = null;
+    }
+    const foot = document.getElementById('chartFootnote');
+    if (foot) foot.textContent = 'Sin datos para graficar.';
+    return;
+  }
+  const labels = data.points.map((point, index) => {
+    if (point.shiftDate) {
+      return new Date(point.shiftDate).toLocaleDateString('es-VE');
+    }
+    return `#${point.id || index + 1}`;
+  });
+  const values = data.points.map((point) => msToMinutes(point.value));
+  const cl = msToMinutes(data.centerLine || 0);
+  const ucl = msToMinutes(data.ucl || 0);
+  const lcl = msToMinutes(data.lcl || 0);
+  if (state.controlChart) {
+    state.controlChart.destroy();
+  }
+  const datasets = [
+    {
+      label: 'Valores',
+      data: values,
+      borderColor: '#f5aa2c',
+      backgroundColor: 'rgba(245, 170, 44, 0.15)',
+      tension: 0.2,
+      pointRadius: 4,
+      pointBackgroundColor: data.points.map((pt) => (pt.outOfControl ? '#f36c60' : '#f5aa2c')),
+    },
+    {
+      label: 'UCL',
+      data: new Array(values.length).fill(ucl),
+      borderColor: '#f36c60',
+      borderDash: [6, 6],
+      pointRadius: 0,
+    },
+    {
+      label: 'CL',
+      data: new Array(values.length).fill(cl),
+      borderColor: '#94a0b5',
+      borderDash: [4, 4],
+      pointRadius: 0,
+    },
+    {
+      label: 'LCL',
+      data: new Array(values.length).fill(lcl),
+      borderColor: '#46c172',
+      borderDash: [6, 6],
+      pointRadius: 0,
+    },
+  ];
+
+  state.controlChart = new Chart(canvas.getContext('2d'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets,
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { intersect: false, mode: 'index' },
+      plugins: {
+        legend: { display: true },
+        tooltip: {
+          callbacks: {
+            label(context) {
+              if (context.datasetIndex === 0) {
+                return `Valor: ${context.formattedValue} min`;
+              }
+              return `${context.dataset.label}: ${context.formattedValue} min`;
+            },
+          },
+        },
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          title: { display: true, text: 'Minutos' },
+        },
+      },
+    },
+  });
+
+  const foot = document.getElementById('chartFootnote');
+  if (foot) {
+    const metricLabel = metric === 'durationMs' ? 'Duración máquina' : metric === 'deadMs' ? 'Tiempos muertos' : 'Total general';
+    foot.textContent = `${metricLabel} · CL ${cl.toFixed(2)} min · UCL ${ucl.toFixed(2)} min · LCL ${lcl.toFixed(2)} min (n=${data.count})`;
+  }
+}
+
+function msToMinutes(ms = 0) {
+  return Number(ms || 0) / 60000;
+}
+
+function buildBackendHeaders() {
+  const headers = {};
+  if (BACKEND_API_KEY) {
+    headers['x-api-key'] = BACKEND_API_KEY;
+  }
+  return headers;
+}
+
+function showResultsStatus(message) {
+  const statusEl = document.getElementById('resultsStatus');
+  if (!statusEl) return;
+  statusEl.textContent = message;
 }

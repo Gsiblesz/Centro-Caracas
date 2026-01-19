@@ -36,6 +36,7 @@
     </div>
       <div class="header-actions">
         <a class="ghost-button" href="https://docs.google.com/spreadsheets/d/1FJqnYbVdQZsxSW_q7yRjBCBYzVSofUZBKiTQfWkBdHs/edit?gid=308938848" target="_blank" rel="noreferrer noopener">Ver resultados en Sheets</a>
+        <button type="button" class="ghost-button ghost-button--muted" id="openResultsTab">Ver resultados en la app</button>
       </div>
     <form class="shift-form" id="shiftForm" autocomplete="off">
       <label class="shift-field shift-field--date">
@@ -77,6 +78,7 @@
         <button class="tab-button" data-tab-target="mesa" role="tab">Mesa</button>
         <button class="tab-button" data-tab-target="fermenter" role="tab">Fermentadora</button>
         <button class="tab-button" data-tab-target="ovens" role="tab">Horno</button>
+        <button class="tab-button" data-tab-target="results" role="tab">Resultados</button>
       </div>
 
       <section class="tab-panel is-active" data-tab-panel="mixers">
@@ -126,10 +128,6 @@
                 <label>
                   <span>Temp. masa (°C)</span>
                   <input type="number" name="tempMasa" step="0.1">
-                </label>
-                <label>
-                  <span>Peso masa (kg)</span>
-                  <input type="number" name="pesoMasa" step="0.1">
                 </label>
                 <label class="span-2">
                   <span>Notas</span>
@@ -429,6 +427,102 @@
         </div>
         <div class="history" data-history="ovens"></div>
       </section>
+
+      <section class="tab-panel" data-tab-panel="results" id="resultsPanel">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">Backend + Sheets</p>
+            <h2>Resultados y gráficas</h2>
+            <p class="subhead">Consulta los datos guardados en Render y genera gráficas de control estilo Analyse-it.</p>
+          </div>
+          <div class="panel-actions">
+            <span class="status-pill status-pill--info" id="resultsStatus"></span>
+          </div>
+        </div>
+
+        <div class="results-controls">
+          <label>
+            <span>Desde</span>
+            <input type="date" id="resultsFrom">
+          </label>
+          <label>
+            <span>Hasta</span>
+            <input type="date" id="resultsTo">
+          </label>
+          <label>
+            <span>Proceso</span>
+            <select id="resultsPanelFilter">
+              <option value="all">Todos</option>
+              <option value="mixers">Amasadoras</option>
+              <option value="mesa">Mesa</option>
+              <option value="fermenter">Fermentadora</option>
+              <option value="ovens">Horno</option>
+            </select>
+          </label>
+          <button type="button" class="primary" id="resultsRefresh">Actualizar lista</button>
+        </div>
+
+        <div class="results-view-switch">
+          <button type="button" class="is-active" id="resultsShowCards">Tarjetas</button>
+          <button type="button" id="resultsShowCharts">Gráficas</button>
+        </div>
+
+        <div class="results-summary">
+          <article class="summary-card">
+            <p class="eyebrow">Registros filtrados</p>
+            <h3 data-summary="count">0</h3>
+            <p class="summary-foot">Incluye envíos desde la UI</p>
+          </article>
+          <article class="summary-card">
+            <p class="eyebrow">Duración máquina</p>
+            <h3 data-summary="duration-avg">—</h3>
+            <p class="summary-foot">Min <span data-summary="duration-min">—</span> · Máx <span data-summary="duration-max">—</span></p>
+          </article>
+          <article class="summary-card">
+            <p class="eyebrow">Tiempos muertos</p>
+            <h3 data-summary="dead-avg">—</h3>
+            <p class="summary-foot">Min <span data-summary="dead-min">—</span> · Máx <span data-summary="dead-max">—</span></p>
+          </article>
+          <article class="summary-card">
+            <p class="eyebrow">Total general</p>
+            <h3 data-summary="overall-avg">—</h3>
+            <p class="summary-foot">Min <span data-summary="overall-min">—</span> · Máx <span data-summary="overall-max">—</span></p>
+          </article>
+        </div>
+
+        <div class="results-area is-active" data-results-area="cards">
+          <div class="results-card-grid" id="resultsCardGrid">
+            <div class="result-card">
+              <p class="eyebrow">Cargando...</p>
+              <p>Trayendo registros del backend.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="results-area" data-results-area="charts">
+          <div class="chart-card">
+          <div class="chart-head">
+            <div>
+              <p class="eyebrow">Gráfica de control</p>
+              <h3>Sigue la estabilidad</h3>
+            </div>
+            <label class="chart-filter">
+              <span>Métrica</span>
+              <select id="resultsMetric">
+                <option value="overallMs">Total general</option>
+                <option value="durationMs">Duración máquina</option>
+                <option value="deadMs">Tiempos muertos</option>
+              </select>
+            </label>
+            <button type="button" class="ghost-button" id="resultsChartRefresh">Actualizar gráficas</button>
+          </div>
+            <div class="chart-body">
+              <canvas id="controlChart" height="320"></canvas>
+            </div>
+            <p class="chart-foot" id="chartFootnote">Sin datos para graficar.</p>
+          </div>
+        </div>
+      </section>
     </div>
   </main>
 
@@ -462,6 +556,7 @@
     </article>
   </template>
 
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js" integrity="sha384-X61sPjuPmyqbpNoXzHGu5v1VQZpHNawUjCefc0FGOcL89rVkj2r90oCbGyF/F7Ai" crossorigin="anonymous"></script>
   <script src="app.js"></script>
 </body>
 </html>
