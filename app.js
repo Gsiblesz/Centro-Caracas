@@ -1,6 +1,8 @@
 'use strict';
 
 const API_URL = 'https://script.google.com/macros/s/AKfycbwLcR2mEfY2i-MIxc3JO6mcS5JL2EoE4rjftf3dvfxt6ny5gqmaD0fqcdSRdyfBdYqp/exec';
+const BACKEND_URL = 'https://centro-caracas-backend.onrender.com/registros';
+const BACKEND_API_KEY = 'npg_h1wfyYnG2RDz';
 
 const state = {
   timers: {},
@@ -386,7 +388,7 @@ function wireMixerCard(card) {
       attachLotTransition(payload);
       const historyEntry = formatHistoryEntry(payload);
       try {
-        await sendToSheets(payload);
+        await persistPayload(payload);
         addHistory('mixers', historyEntry);
         resetStageDisplays();
         form.reset();
@@ -427,7 +429,7 @@ function wireCard(card) {
       attachLotTransition(payload);
       const historyEntry = formatHistoryEntry(payload);
       try {
-        await sendToSheets(payload);
+        await persistPayload(payload);
         addHistory(panel, historyEntry);
         timer.finish();
         timer.reset();
@@ -590,6 +592,45 @@ async function sendToSheets(payload) {
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
     body: JSON.stringify(payload),
   });
+  return { ok: true };
+}
+
+async function sendToBackend(payload) {
+  if (!BACKEND_URL) {
+    console.warn('Define BACKEND_URL para habilitar el envío al backend.');
+    return;
+  }
+  const headers = { 'Content-Type': 'application/json' };
+  if (BACKEND_API_KEY) {
+    headers['x-api-key'] = BACKEND_API_KEY;
+  }
+  const response = await fetch(BACKEND_URL, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    const text = await response.text().catch(() => '');
+    throw new Error(`Backend ${response.status}: ${text || 'sin cuerpo'}`);
+  }
+  return response.json().catch(() => ({ ok: true }));
+}
+
+async function persistPayload(payload) {
+  const failures = [];
+  try {
+    await sendToSheets(payload);
+  } catch (err) {
+    failures.push(`Sheets: ${err?.message || err}`);
+  }
+  try {
+    await sendToBackend(payload);
+  } catch (err) {
+    failures.push(`Backend: ${err?.message || err}`);
+  }
+  if (failures.length) {
+    throw new Error(failures.join(' | '));
+  }
   return { ok: true };
 }
 
