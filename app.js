@@ -16,6 +16,9 @@ const state = {
   fermenterCount: 0,
   lotTracker: {},
   controlChart: null,
+  panelDistributionChart: null,
+  timeSplitChart: null,
+  envTrendChart: null,
   resultsMode: 'cards',
   resultsRecords: [],
 };
@@ -833,6 +836,7 @@ async function refreshResultsList() {
     state.resultsRecords = records;
     renderResultsCards(records);
     renderSummaryCards(summary);
+    updateAuxiliaryCharts(records);
     showResultsStatus(records.length ? '' : 'Sin registros para los filtros seleccionados.');
   } catch (err) {
     console.error('Resultados · lista', err);
@@ -1110,8 +1114,194 @@ function renderControlChart(data, metric) {
   }
 }
 
+function updateAuxiliaryCharts(records = []) {
+  renderPanelDistributionChart(records);
+  renderTimeSplitChart(records);
+  renderEnvTrendChart(records);
+}
+
+function renderPanelDistributionChart(records = []) {
+  const canvas = document.getElementById('panelDistributionChart');
+  if (!canvas || !window.Chart) return;
+  const ctx = canvas.getContext('2d');
+  const counts = {
+    mixers: 0,
+    mesa: 0,
+    fermenter: 0,
+    ovens: 0,
+  };
+  records.forEach((row) => {
+    const key = row?.panel || 'otros';
+    if (counts[key] === undefined) counts[key] = 0;
+    counts[key] += 1;
+  });
+  const keys = Object.keys(counts);
+  const labels = keys.map((key) => getPanelLabel(key));
+  const data = keys.map((key) => counts[key] || 0);
+  if (state.panelDistributionChart) {
+    state.panelDistributionChart.destroy();
+  }
+  state.panelDistributionChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Registros',
+          data,
+          backgroundColor: '#f5aa2c',
+          borderRadius: 6,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: { precision: 0 },
+        },
+      },
+    },
+  });
+}
+
+function renderTimeSplitChart(records = []) {
+  const canvas = document.getElementById('timeSplitChart');
+  if (!canvas || !window.Chart) return;
+  const ctx = canvas.getContext('2d');
+  let machineMs = 0;
+  let deadMs = 0;
+  records.forEach((row) => {
+    const duration = toNumber(
+      row?.durationMs ?? row?.data?.timing?.durationMs ?? row?.totals?.machineTotalMs ?? row?.data?.totals?.machineTotalMs
+    );
+    const dead = toNumber(row?.deadMs ?? row?.data?.totals?.deadTotalMs ?? row?.totals?.deadTotalMs);
+    machineMs += duration;
+    deadMs += dead;
+  });
+  const machineMinutes = machineMs / 60000;
+  const deadMinutes = deadMs / 60000;
+  if (state.timeSplitChart) {
+    state.timeSplitChart.destroy();
+  }
+  state.timeSplitChart = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: ['Tiempo máquina', 'Tiempos muertos'],
+      datasets: [
+        {
+          data: [machineMinutes, deadMinutes],
+          backgroundColor: ['#46c172', '#f36c60'],
+          borderWidth: 0,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom' },
+      },
+    },
+  });
+}
+
+function renderEnvTrendChart(records = []) {
+  const canvas = document.getElementById('envTrendChart');
+  const foot = document.getElementById('envChartFootnote');
+  if (!canvas || !window.Chart) return;
+  const buckets = new Map();
+  records.forEach((row) => {
+    const shift = row?.data?.shift || {};
+    const temp = Number(shift?.ambientTemp ?? shift?.temp ?? shift?.temperatura ?? shift?.tempAmbiente);
+    const humidity = Number(shift?.ambientHumidity ?? shift?.humedad ?? shift?.humidity ?? shift?.humedadAmbiente);
+    if (!Number.isFinite(temp) && !Number.isFinite(humidity)) return;
+    const rawDate = row?.shiftDate || row?.timestamp || row?.createdAt;
+    if (!rawDate) return;
+    const key = new Date(rawDate).toISOString();
+    if (!buckets.has(key)) {
+      buckets.set(key, { date: new Date(rawDate), temps: [], hums: [] });
+    }
+    const bucket = buckets.get(key);
+    if (Number.isFinite(temp)) bucket.temps.push(temp);
+    if (Number.isFinite(humidity)) bucket.hums.push(humidity);
+  });
+  const entries = Array.from(buckets.values()).sort((a, b) => a.date - b.date);
+  if (state.envTrendChart) {
+    state.envTrendChart.destroy();
+    state.envTrendChart = null;
+  }
+  if (!entries.length) {
+    if (foot) foot.textContent = 'Sin datos de ambiente registrados.';
+    return;
+  }
+  const labels = entries.map((entry) => entry.date.toLocaleDateString('es-VE', { month: 'short', day: 'numeric' }));
+  const temps = entries.map((entry) => average(entry.temps));
+  const hums = entries.map((entry) => average(entry.hums));
+  if (foot) {
+    foot.textContent = `Basado en ${entries.length} registro(s) con variables de ambiente.`;
+  }
+  state.envTrendChart = new Chart(canvas.getContext('2d'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Temperatura (°C)',
+          data: temps,
+          borderColor: '#f5aa2c',
+          backgroundColor: 'rgba(245, 170, 44, 0.15)',
+          tension: 0.3,
+          spanGaps: true,
+          yAxisID: 'y',
+        },
+        {
+          label: 'Humedad (%)',
+          data: hums,
+          borderColor: '#46c172',
+          backgroundColor: 'rgba(70, 193, 114, 0.15)',
+          tension: 0.3,
+          spanGaps: true,
+          yAxisID: 'y1',
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { intersect: false, mode: 'index' },
+      scales: {
+        y: {
+          position: 'left',
+          title: { display: true, text: '°C' },
+        },
+        y1: {
+          position: 'right',
+          grid: { drawOnChartArea: false },
+          title: { display: true, text: '%' },
+          suggestedMin: 0,
+          suggestedMax: 100,
+        },
+      },
+    },
+  });
+}
+
 function msToMinutes(ms = 0) {
   return Number(ms || 0) / 60000;
+}
+
+function toNumber(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : 0;
+}
+
+function average(values = []) {
+  const filtered = values.filter((value) => Number.isFinite(value));
+  if (!filtered.length) return null;
+  return filtered.reduce((acc, value) => acc + value, 0) / filtered.length;
 }
 
 function buildBackendHeaders() {

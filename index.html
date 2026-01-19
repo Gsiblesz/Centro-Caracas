@@ -502,25 +502,66 @@
 
         <div class="results-area" data-results-area="charts">
           <div class="chart-card">
-          <div class="chart-head">
-            <div>
-              <p class="eyebrow">Gráfica de control</p>
-              <h3>Sigue la estabilidad</h3>
+            <div class="chart-head">
+              <div>
+                <p class="eyebrow">Gráfica de control</p>
+                <h3>Sigue la estabilidad</h3>
+              </div>
+              <label class="chart-filter">
+                <span>Métrica</span>
+                <select id="resultsMetric">
+                  <option value="overallMs">Total general</option>
+                  <option value="durationMs">Duración máquina</option>
+                  <option value="deadMs">Tiempos muertos</option>
+                </select>
+              </label>
+              <button type="button" class="ghost-button" id="resultsChartRefresh">Actualizar gráficas</button>
             </div>
-            <label class="chart-filter">
-              <span>Métrica</span>
-              <select id="resultsMetric">
-                <option value="overallMs">Total general</option>
-                <option value="durationMs">Duración máquina</option>
-                <option value="deadMs">Tiempos muertos</option>
-              </select>
-            </label>
-            <button type="button" class="ghost-button" id="resultsChartRefresh">Actualizar gráficas</button>
-          </div>
             <div class="chart-body">
               <canvas id="controlChart" height="320"></canvas>
             </div>
             <p class="chart-foot" id="chartFootnote">Sin datos para graficar.</p>
+          </div>
+
+          <div class="chart-grid">
+            <article class="chart-card chart-card--compact">
+              <div class="chart-head">
+                <div>
+                  <p class="eyebrow">Distribución por proceso</p>
+                  <h3>¿Dónde se registra más?</h3>
+                </div>
+              </div>
+              <div class="chart-body">
+                <canvas id="panelDistributionChart" height="260"></canvas>
+              </div>
+              <p class="chart-foot">Conteo de registros según panel.</p>
+            </article>
+
+            <article class="chart-card chart-card--compact">
+              <div class="chart-head">
+                <div>
+                  <p class="eyebrow">Uso del tiempo</p>
+                  <h3>Máquina vs. muertos</h3>
+                </div>
+              </div>
+              <div class="chart-body">
+                <canvas id="timeSplitChart" height="260"></canvas>
+              </div>
+              <p class="chart-foot">Promedio de minutos dedicados a máquina frente a tiempos muertos.</p>
+            </article>
+
+            <article class="chart-card chart-card--wide">
+              <div class="chart-head">
+                <div>
+                  <p class="eyebrow">Variables de ambiente</p>
+                  <h3>Temperatura y humedad</h3>
+                </div>
+              </div>
+              <div class="chart-body chart-body--wide">
+                <canvas id="envTrendChart" height="300"></canvas>
+              </div>
+              <p class="chart-foot" id="envChartFootnote">Sin datos de ambiente registrados.</p>
+            </article>
           </div>
         </div>
       </section>

@@ -748,6 +748,25 @@ button.ghost,
   border: 1px solid var(--border);
 }
 
+.chart-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.chart-card--compact .chart-body {
+  height: 260px;
+}
+
+.chart-card--wide {
+  grid-column: span 2;
+}
+
+.chart-card--wide .chart-body {
+  height: 320px;
+}
+
 .chart-card {
   border: 1px solid var(--border);
   border-radius: 16px;
