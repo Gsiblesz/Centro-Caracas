@@ -19,6 +19,11 @@ Interfaz estática para la sede Centro en Caracas: tres amasadoras, dos líneas 
    - `const BACKEND_API_KEY = 'npg_h1wfyYnG2RDz'`
 4) Abre index.html en el navegador (o sirve la carpeta con un servidor estático).
 
+## Backend API
+- El código del backend Express/Prisma vive en el repositorio independiente [Gsiblesz/Centro-Caracas.Backend](https://github.com/Gsiblesz/Centro-Caracas.Backend.git).
+- Ese repo expone la API que consume este panel (`/registros`, `/registros/metrics`, `/registros/control-chart`) y está pensado para desplegarse en Render junto a Neon/Postgres.
+- Si necesitas actualizar la API, hazlo allí y redepliega el servicio antes de volver a consumirlo desde este frontend.
+
 ## Uso
 - Completa los datos de turno (fecha, turno, responsable, ambiente).
 - Usa las pestañas: Amasadoras (3), Mesa (2), Fermentadora (agrega tantas fichas como necesites), Horno (1).
