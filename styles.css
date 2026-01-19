@@ -37,6 +37,51 @@ body.is-locked .tab-shell {
   user-select: none;
 }
 
+.notification-stack {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 9999;
+  max-width: min(320px, 90vw);
+}
+
+.notification {
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  padding: 12px 14px;
+  background: rgba(21, 26, 36, 0.95);
+  color: var(--text);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  font-size: 14px;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.notification--success {
+  border-color: rgba(70, 193, 114, 0.7);
+}
+
+.notification--warning {
+  border-color: rgba(240, 201, 61, 0.7);
+}
+
+.notification--error {
+  border-color: rgba(243, 108, 96, 0.8);
+}
+
+.notification button {
+  margin-left: auto;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 16px;
+}
+
 .lock-screen {
   position: fixed;
   inset: 0;

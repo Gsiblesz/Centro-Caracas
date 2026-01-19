@@ -426,7 +426,8 @@ function wireMixerCard(card) {
       attachLotTransition(payload);
       const historyEntry = formatHistoryEntry(payload);
       try {
-        await persistPayload(payload);
+        const persistence = await persistPayload(payload);
+        notifyPersistence(persistence);
         addHistory('mixers', historyEntry);
         resetStageDisplays();
         form.reset();
@@ -434,6 +435,7 @@ function wireMixerCard(card) {
       } catch (err) {
         console.error('No se pudo enviar a Sheets', err);
         addHistory('mixers', `${historyEntry} · Error al enviar`);
+        showNotification(err?.message || 'No se pudo guardar', 'error');
       }
     });
   }
@@ -467,7 +469,8 @@ function wireCard(card) {
       attachLotTransition(payload);
       const historyEntry = formatHistoryEntry(payload);
       try {
-        await persistPayload(payload);
+        const persistence = await persistPayload(payload);
+        notifyPersistence(persistence);
         addHistory(panel, historyEntry);
         timer.finish();
         timer.reset();
@@ -475,6 +478,7 @@ function wireCard(card) {
       } catch (err) {
         console.error('No se pudo enviar a Sheets', err);
         addHistory(panel, `${historyEntry} · Error al enviar`);
+        showNotification(err?.message || 'No se pudo guardar', 'error');
       } finally {
         delete form.dataset.submitting;
       }
@@ -655,21 +659,23 @@ async function sendToBackend(payload) {
 }
 
 async function persistPayload(payload) {
-  const failures = [];
+  const result = { sheets: false, backend: false, errors: [] };
   try {
     await sendToSheets(payload);
+    result.sheets = true;
   } catch (err) {
-    failures.push(`Sheets: ${err?.message || err}`);
+    result.errors.push(`Sheets: ${err?.message || err}`);
   }
   try {
     await sendToBackend(payload);
+    result.backend = true;
   } catch (err) {
-    failures.push(`Backend: ${err?.message || err}`);
+    result.errors.push(`Backend: ${err?.message || err}`);
   }
-  if (failures.length) {
-    throw new Error(failures.join(' | '));
+  if (!result.sheets && !result.backend) {
+    throw new Error(result.errors.join(' | ') || 'No se pudo guardar');
   }
-  return { ok: true };
+  return result;
 }
 
 function formatHistoryEntry(payload) {
@@ -1120,4 +1126,39 @@ function showResultsStatus(message) {
   const statusEl = document.getElementById('resultsStatus');
   if (!statusEl) return;
   statusEl.textContent = message;
+}
+
+function notifyPersistence(status) {
+  if (!status) return;
+  const successTargets = [];
+  if (status.sheets) successTargets.push('Sheets');
+  if (status.backend) successTargets.push('BD');
+  let type = 'success';
+  if (successTargets.length === 1) type = 'warning';
+  const successMessage = successTargets.length
+    ? `Guardado en ${successTargets.join(' y ')}`
+    : 'Guardado parcial';
+  showNotification(successMessage, type, 5000);
+  if (status.errors?.length) {
+    showNotification(status.errors.join(' | '), 'warning', 6000);
+  }
+}
+
+function showNotification(message, type = 'info', duration = 4000) {
+  const stack = document.getElementById('appNotifications');
+  if (!stack) return;
+  const item = document.createElement('div');
+  item.className = `notification notification--${type}`;
+  item.innerHTML = `<span>${message}</span><button type="button" aria-label="Cerrar">×</button>`;
+  stack.appendChild(item);
+
+  const remove = () => {
+    if (item.parentElement) {
+      item.parentElement.removeChild(item);
+    }
+  };
+  item.querySelector('button').addEventListener('click', remove);
+  if (duration > 0) {
+    setTimeout(remove, duration);
+  }
 }
