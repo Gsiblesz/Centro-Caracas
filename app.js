@@ -19,8 +19,13 @@ const state = {
   panelDistributionChart: null,
   timeSplitChart: null,
   envTrendChart: null,
+  transitionChart: null,
+  dailyTrendChart: null,
+  deadHistogramChart: null,
+  tempCorrelationChart: null,
   resultsMode: 'cards',
   resultsRecords: [],
+  selectedRecordIds: new Set(),
 };
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -796,6 +801,8 @@ function setupResultsView() {
   if (cardsBtn) cardsBtn.addEventListener('click', () => setResultsMode('cards'));
   if (chartsBtn) chartsBtn.addEventListener('click', () => setResultsMode('charts'));
 
+  wireResultsSelection();
+
   setResultsMode('cards');
   reloadAll();
 }
@@ -837,6 +844,7 @@ async function refreshResultsList() {
     renderResultsCards(records);
     renderSummaryCards(summary);
     updateAuxiliaryCharts(records);
+    updateResultsSelectionUI();
     showResultsStatus(records.length ? '' : 'Sin registros para los filtros seleccionados.');
   } catch (err) {
     console.error('Resultados · lista', err);
@@ -908,11 +916,138 @@ function renderResultsCards(records = []) {
         <p class="eyebrow">Sin registros</p>
         <p>Ajusta los filtros o guarda un nuevo lote para ver tarjetas.</p>
       </div>`;
+    clearResultsSelection();
     return;
   }
   grid.innerHTML = records
     .map((row) => renderResultCard(row))
     .join('');
+  applyResultsSelectionToDom();
+}
+
+function wireResultsSelection() {
+  const grid = document.getElementById('resultsCardGrid');
+  if (!grid) return;
+  const selectAll = document.getElementById('resultsSelectAll');
+  const clearBtn = document.getElementById('resultsClearSelection');
+  const deleteBtn = document.getElementById('resultsDeleteSelected');
+
+  grid.addEventListener('change', (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLInputElement)) return;
+    if (!target.matches('[data-record-select]')) return;
+    const recordId = target.getAttribute('data-record-id');
+    if (!recordId) return;
+    if (target.checked) {
+      state.selectedRecordIds.add(recordId);
+    } else {
+      state.selectedRecordIds.delete(recordId);
+    }
+    updateResultsSelectionUI();
+  });
+
+  if (selectAll) {
+    selectAll.addEventListener('change', () => {
+      toggleResultsSelectAll(selectAll.checked);
+    });
+  }
+  if (clearBtn) clearBtn.addEventListener('click', clearResultsSelection);
+  if (deleteBtn) deleteBtn.addEventListener('click', confirmDeleteSelectedRecords);
+}
+
+function getSelectableResultCheckboxes() {
+  const grid = document.getElementById('resultsCardGrid');
+  if (!grid) return [];
+  return Array.from(grid.querySelectorAll('[data-record-select]')).filter((item) => !item.disabled);
+}
+
+function applyResultsSelectionToDom() {
+  const checkboxes = getSelectableResultCheckboxes();
+  checkboxes.forEach((item) => {
+    const recordId = item.getAttribute('data-record-id');
+    item.checked = recordId ? state.selectedRecordIds.has(recordId) : false;
+  });
+  updateResultsSelectionUI();
+}
+
+function toggleResultsSelectAll(checked) {
+  const checkboxes = getSelectableResultCheckboxes();
+  state.selectedRecordIds.clear();
+  checkboxes.forEach((item) => {
+    item.checked = checked;
+    const recordId = item.getAttribute('data-record-id');
+    if (checked && recordId) state.selectedRecordIds.add(recordId);
+  });
+  updateResultsSelectionUI();
+}
+
+function clearResultsSelection() {
+  state.selectedRecordIds.clear();
+  const checkboxes = getSelectableResultCheckboxes();
+  checkboxes.forEach((item) => {
+    item.checked = false;
+  });
+  updateResultsSelectionUI();
+}
+
+function updateResultsSelectionUI() {
+  const countEl = document.getElementById('resultsSelectedCount');
+  const deleteBtn = document.getElementById('resultsDeleteSelected');
+  const selectAll = document.getElementById('resultsSelectAll');
+  const checkboxes = getSelectableResultCheckboxes();
+  const selectedCount = state.selectedRecordIds.size;
+  if (countEl) countEl.textContent = `${selectedCount} seleccionados`;
+  if (deleteBtn) deleteBtn.disabled = selectedCount === 0;
+  if (selectAll) {
+    if (!checkboxes.length) {
+      selectAll.checked = false;
+      selectAll.indeterminate = false;
+    } else {
+      const checkedCount = checkboxes.filter((item) => item.checked).length;
+      selectAll.checked = checkedCount === checkboxes.length;
+      selectAll.indeterminate = checkedCount > 0 && checkedCount < checkboxes.length;
+    }
+  }
+}
+
+async function confirmDeleteSelectedRecords() {
+  const ids = Array.from(state.selectedRecordIds);
+  if (!ids.length) return;
+  const confirmed = confirm(`¿Eliminar ${ids.length} registro(s) seleccionados? Esta acción no se puede deshacer.`);
+  if (!confirmed) return;
+  try {
+    showResultsStatus('Eliminando registros...');
+    await deleteBackendRecords(ids);
+    showResultsStatus('Registros eliminados.');
+    clearResultsSelection();
+    await refreshResultsList();
+  } catch (err) {
+    console.error('Resultados · delete', err);
+    showResultsStatus(`Error al eliminar: ${err?.message || err}`);
+  }
+}
+
+async function deleteBackendRecords(ids = []) {
+  if (!BACKEND_BASE_URL) throw new Error('Backend no configurado');
+  const url = `${BACKEND_BASE_URL}/registros`;
+  const payload = { ids };
+  let response = await fetch(url, {
+    method: 'DELETE',
+    headers: { ...buildBackendHeaders(), 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok && ids.length === 1) {
+    const singleUrl = `${BACKEND_BASE_URL}/registros/${ids[0]}`;
+    response = await fetch(singleUrl, {
+      method: 'DELETE',
+      headers: buildBackendHeaders(),
+    });
+  }
+  if (!response.ok) {
+    const text = await response.text().catch(() => '');
+    throw new Error(text || `HTTP ${response.status}`);
+  }
+  return response.json().catch(() => ({ ok: true }));
 }
 
 function renderResultCard(row) {
@@ -921,6 +1056,8 @@ function renderResultCard(row) {
   const lotLabel = row.lotId || row.lote || row.data?.shift?.dailyLot || 'Sin lote';
   const observation = extractObservation(row);
   const variables = extractVariableBadges(row);
+  const recordId = row?.id || row?._id || row?.recordId || row?.data?.id || '';
+  const canSelect = Boolean(recordId);
   return `
     <article class="result-card">
       <header>
@@ -928,7 +1065,13 @@ function renderResultCard(row) {
           <p class="eyebrow">${dateLabel}</p>
           <h3>${panelLabel} · ${row.unit}</h3>
         </div>
-        <span class="result-chip">${lotLabel}</span>
+        <div class="result-card-actions">
+          <span class="result-chip">${lotLabel}</span>
+          <label class="result-select" title="${canSelect ? 'Seleccionar registro' : 'Registro sin ID'}">
+            <input type="checkbox" data-record-select data-record-id="${recordId}" ${canSelect ? '' : 'disabled'}>
+            <span>${canSelect ? 'Seleccionar' : 'Sin ID'}</span>
+          </label>
+        </div>
       </header>
       <div class="result-metrics">
         <div><dt>Total</dt><dd>${formatDuration(row.overallMs || 0)}</dd></div>
@@ -1118,6 +1261,10 @@ function updateAuxiliaryCharts(records = []) {
   renderPanelDistributionChart(records);
   renderTimeSplitChart(records);
   renderEnvTrendChart(records);
+  renderTransitionChart(records);
+  renderDailyTrendChart(records);
+  renderDeadHistogramChart(records);
+  renderTempCorrelationChart(records);
 }
 
 function renderPanelDistributionChart(records = []) {
@@ -1287,6 +1434,257 @@ function renderEnvTrendChart(records = []) {
       },
     },
   });
+}
+
+function renderTransitionChart(records = []) {
+  const canvas = document.getElementById('transitionChart');
+  const foot = document.getElementById('transitionChartFootnote');
+  if (!canvas || !window.Chart) return;
+  const normalize = (value = '') => {
+    const key = String(value || '').toLowerCase();
+    const map = {
+      mixer: 'mixers',
+      mixers: 'mixers',
+      mesa: 'mesa',
+      ferment: 'fermenter',
+      fermenter: 'fermenter',
+      ovens: 'ovens',
+      oven: 'ovens',
+    };
+    return map[key] || '';
+  };
+  const buckets = {
+    'mixers->mesa': [],
+    'mesa->fermenter': [],
+    'fermenter->ovens': [],
+  };
+  records.forEach((row) => {
+    const transition = row?.transition ?? row?.data?.transition;
+    if (!transition) return;
+    const fromKey = normalize(transition.from);
+    const toKey = normalize(transition.to || row?.panel);
+    const delta = toNumber(transition.deltaMs ?? transition.delta_ms ?? transition.delta);
+    if (!fromKey || !toKey || delta <= 0) return;
+    const key = `${fromKey}->${toKey}`;
+    if (buckets[key]) buckets[key].push(delta);
+  });
+
+  const keys = ['mixers->mesa', 'mesa->fermenter', 'fermenter->ovens'];
+  const labels = ['Amasadora → Mesa', 'Mesa → Fermentadora', 'Fermentadora → Horno'];
+  const data = keys.map((key) => {
+    const avg = average(buckets[key]);
+    return avg ? msToMinutes(avg) : 0;
+  });
+  const counts = keys.map((key) => buckets[key].length);
+  if (state.transitionChart) {
+    state.transitionChart.destroy();
+  }
+  state.transitionChart = new Chart(canvas.getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Promedio (min)',
+          data,
+          backgroundColor: ['#5a7efc', '#46c172', '#f5aa2c'],
+          borderRadius: 6,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        y: {
+          beginAtZero: true,
+          title: { display: true, text: 'Minutos' },
+        },
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label(context) {
+              return `${context.formattedValue} min`;
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (foot) {
+    const total = counts.reduce((acc, value) => acc + value, 0);
+    foot.textContent = total
+      ? `Promedios calculados con ${total} transición(es).`
+      : 'Sin transiciones registradas.';
+  }
+}
+
+function renderDailyTrendChart(records = []) {
+  const canvas = document.getElementById('dailyTrendChart');
+  const foot = document.getElementById('dailyTrendFootnote');
+  if (!canvas || !window.Chart) return;
+  const buckets = new Map();
+  records.forEach((row) => {
+    const rawDate = row?.shiftDate || row?.timestamp || row?.createdAt;
+    if (!rawDate) return;
+    const date = new Date(rawDate);
+    if (Number.isNaN(date.getTime())) return;
+    const key = date.toISOString().slice(0, 10);
+    const overall = toNumber(
+      row?.overallMs ??
+      row?.data?.totals?.overallMs ??
+      row?.totals?.overallMs ??
+      row?.data?.timing?.overallMs
+    );
+    if (!overall) return;
+    if (!buckets.has(key)) buckets.set(key, []);
+    buckets.get(key).push(overall);
+  });
+
+  const entries = Array.from(buckets.entries()).sort(([a], [b]) => (a > b ? 1 : -1));
+  if (state.dailyTrendChart) state.dailyTrendChart.destroy();
+  if (!entries.length) {
+    if (foot) foot.textContent = 'Sin datos de tendencia diaria.';
+    return;
+  }
+  const labels = entries.map(([key]) => key);
+  const values = entries.map(([, items]) => msToMinutes(average(items) || 0));
+  state.dailyTrendChart = new Chart(canvas.getContext('2d'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Promedio total (min)',
+          data: values,
+          borderColor: '#5a7efc',
+          backgroundColor: 'rgba(90, 126, 252, 0.18)',
+          tension: 0.3,
+          fill: true,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { intersect: false, mode: 'index' },
+      scales: {
+        y: {
+          beginAtZero: true,
+          title: { display: true, text: 'Minutos' },
+        },
+      },
+    },
+  });
+  if (foot) foot.textContent = `Promedio diario calculado con ${entries.length} día(s).`;
+}
+
+function renderDeadHistogramChart(records = []) {
+  const canvas = document.getElementById('deadHistogramChart');
+  const foot = document.getElementById('deadHistogramFootnote');
+  if (!canvas || !window.Chart) return;
+  const values = records
+    .map((row) => toNumber(row?.deadMs ?? row?.data?.totals?.deadTotalMs ?? row?.totals?.deadTotalMs))
+    .filter((value) => value > 0)
+    .map((value) => value / 60000);
+
+  if (state.deadHistogramChart) state.deadHistogramChart.destroy();
+  if (!values.length) {
+    if (foot) foot.textContent = 'Sin tiempos muertos para graficar.';
+    return;
+  }
+
+  const max = Math.max(...values);
+  const binSize = 5;
+  const bins = Math.max(1, Math.ceil(max / binSize));
+  const labels = Array.from({ length: bins }, (_, idx) => {
+    const start = idx * binSize;
+    const end = start + binSize;
+    return `${start}-${end} min`;
+  });
+  const counts = new Array(bins).fill(0);
+  values.forEach((value) => {
+    const index = Math.min(bins - 1, Math.floor(value / binSize));
+    counts[index] += 1;
+  });
+
+  state.deadHistogramChart = new Chart(canvas.getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Frecuencia',
+          data: counts,
+          backgroundColor: '#f36c60',
+          borderRadius: 6,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        y: { beginAtZero: true, ticks: { precision: 0 } },
+        x: { title: { display: true, text: 'Rango de minutos' } },
+      },
+      plugins: { legend: { display: false } },
+    },
+  });
+
+  if (foot) foot.textContent = `Distribución de ${values.length} registro(s) de tiempos muertos.`;
+}
+
+function renderTempCorrelationChart(records = []) {
+  const canvas = document.getElementById('tempCorrelationChart');
+  const foot = document.getElementById('tempCorrelationFootnote');
+  if (!canvas || !window.Chart) return;
+  const points = [];
+  records.forEach((row) => {
+    const shift = row?.data?.shift || {};
+    const temp = Number(shift?.ambientTemp ?? shift?.temp ?? shift?.temperatura ?? shift?.tempAmbiente);
+    const overall = toNumber(
+      row?.overallMs ??
+      row?.data?.totals?.overallMs ??
+      row?.totals?.overallMs ??
+      row?.data?.timing?.overallMs
+    );
+    if (!Number.isFinite(temp) || !overall) return;
+    points.push({ x: temp, y: msToMinutes(overall) });
+  });
+
+  if (state.tempCorrelationChart) state.tempCorrelationChart.destroy();
+  if (!points.length) {
+    if (foot) foot.textContent = 'Sin datos de temperatura para correlación.';
+    return;
+  }
+
+  state.tempCorrelationChart = new Chart(canvas.getContext('2d'), {
+    type: 'scatter',
+    data: {
+      datasets: [
+        {
+          label: 'Temp vs Total',
+          data: points,
+          backgroundColor: 'rgba(245, 170, 44, 0.6)',
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        x: { title: { display: true, text: 'Temperatura (°C)' } },
+        y: { title: { display: true, text: 'Minutos (total)' }, beginAtZero: true },
+      },
+      plugins: { legend: { display: false } },
+    },
+  });
+
+  if (foot) foot.textContent = `Correlación con ${points.length} punto(s).`;
 }
 
 function msToMinutes(ms = 0) {

@@ -463,6 +463,16 @@
           <button type="button" class="primary" id="resultsRefresh">Actualizar lista</button>
         </div>
 
+        <div class="results-actions">
+          <label class="results-select-all">
+            <input type="checkbox" id="resultsSelectAll">
+            <span>Seleccionar todos</span>
+          </label>
+          <span class="results-selected" id="resultsSelectedCount">0 seleccionados</span>
+          <button type="button" class="ghost-button ghost-button--muted" id="resultsClearSelection">Limpiar</button>
+          <button type="button" class="danger-button" id="resultsDeleteSelected" disabled>Eliminar seleccionados</button>
+        </div>
+
         <div class="results-view-switch">
           <button type="button" class="is-active" id="resultsShowCards">Tarjetas</button>
           <button type="button" id="resultsShowCharts">Gráficas</button>
@@ -550,6 +560,45 @@
               <p class="chart-foot">Promedio de minutos dedicados a máquina frente a tiempos muertos.</p>
             </article>
 
+            <article class="chart-card chart-card--compact">
+              <div class="chart-head">
+                <div>
+                  <p class="eyebrow">Transiciones</p>
+                  <h3>Promedio entre procesos</h3>
+                </div>
+              </div>
+              <div class="chart-body">
+                <canvas id="transitionChart" height="260"></canvas>
+              </div>
+              <p class="chart-foot" id="transitionChartFootnote">Sin transiciones registradas.</p>
+            </article>
+
+            <article class="chart-card chart-card--compact">
+              <div class="chart-head">
+                <div>
+                  <p class="eyebrow">Tendencia diaria</p>
+                  <h3>Promedio total por día</h3>
+                </div>
+              </div>
+              <div class="chart-body">
+                <canvas id="dailyTrendChart" height="260"></canvas>
+              </div>
+              <p class="chart-foot" id="dailyTrendFootnote">Sin datos de tendencia diaria.</p>
+            </article>
+
+            <article class="chart-card chart-card--compact">
+              <div class="chart-head">
+                <div>
+                  <p class="eyebrow">Distribución</p>
+                  <h3>Tiempos muertos</h3>
+                </div>
+              </div>
+              <div class="chart-body">
+                <canvas id="deadHistogramChart" height="260"></canvas>
+              </div>
+              <p class="chart-foot" id="deadHistogramFootnote">Sin tiempos muertos para graficar.</p>
+            </article>
+
             <article class="chart-card chart-card--wide">
               <div class="chart-head">
                 <div>
@@ -561,6 +610,19 @@
                 <canvas id="envTrendChart" height="300"></canvas>
               </div>
               <p class="chart-foot" id="envChartFootnote">Sin datos de ambiente registrados.</p>
+            </article>
+
+            <article class="chart-card chart-card--wide">
+              <div class="chart-head">
+                <div>
+                  <p class="eyebrow">Correlación</p>
+                  <h3>Temperatura vs. tiempo total</h3>
+                </div>
+              </div>
+              <div class="chart-body chart-body--wide">
+                <canvas id="tempCorrelationChart" height="300"></canvas>
+              </div>
+              <p class="chart-foot" id="tempCorrelationFootnote">Sin datos de temperatura para correlación.</p>
             </article>
           </div>
         </div>
