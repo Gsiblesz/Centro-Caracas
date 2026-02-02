@@ -25,7 +25,7 @@ const state = {
   tempCorrelationChart: null,
   resultsMode: 'cards',
   resultsRecords: [],
-  selectedRecordIds: new Set(),
+  selectedRecordKeys: new Set(),
 };
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -919,10 +919,21 @@ function renderResultsCards(records = []) {
     clearResultsSelection();
     return;
   }
+  const deleteIdCounts = countDeleteIds(records);
   grid.innerHTML = records
-    .map((row) => renderResultCard(row))
+    .map((row, index) => renderResultCard(row, index, deleteIdCounts))
     .join('');
   applyResultsSelectionToDom();
+}
+
+function countDeleteIds(records = []) {
+  const counts = new Map();
+  records.forEach((row) => {
+    const deleteId = getRecordDeleteId(row);
+    if (!deleteId) return;
+    counts.set(deleteId, (counts.get(deleteId) || 0) + 1);
+  });
+  return counts;
 }
 
 function wireResultsSelection() {
@@ -936,12 +947,12 @@ function wireResultsSelection() {
     const target = event.target;
     if (!(target instanceof HTMLInputElement)) return;
     if (!target.matches('[data-record-select]')) return;
-    const recordId = target.getAttribute('data-record-id');
-    if (!recordId) return;
+    const recordKey = target.getAttribute('data-record-key');
+    if (!recordKey) return;
     if (target.checked) {
-      state.selectedRecordIds.add(recordId);
+      state.selectedRecordKeys.add(recordKey);
     } else {
-      state.selectedRecordIds.delete(recordId);
+      state.selectedRecordKeys.delete(recordKey);
     }
     updateResultsSelectionUI();
   });
@@ -964,25 +975,25 @@ function getSelectableResultCheckboxes() {
 function applyResultsSelectionToDom() {
   const checkboxes = getSelectableResultCheckboxes();
   checkboxes.forEach((item) => {
-    const recordId = item.getAttribute('data-record-id');
-    item.checked = recordId ? state.selectedRecordIds.has(recordId) : false;
+    const recordKey = item.getAttribute('data-record-key');
+    item.checked = recordKey ? state.selectedRecordKeys.has(recordKey) : false;
   });
   updateResultsSelectionUI();
 }
 
 function toggleResultsSelectAll(checked) {
   const checkboxes = getSelectableResultCheckboxes();
-  state.selectedRecordIds.clear();
+  state.selectedRecordKeys.clear();
   checkboxes.forEach((item) => {
     item.checked = checked;
-    const recordId = item.getAttribute('data-record-id');
-    if (checked && recordId) state.selectedRecordIds.add(recordId);
+    const recordKey = item.getAttribute('data-record-key');
+    if (checked && recordKey) state.selectedRecordKeys.add(recordKey);
   });
   updateResultsSelectionUI();
 }
 
 function clearResultsSelection() {
-  state.selectedRecordIds.clear();
+  state.selectedRecordKeys.clear();
   const checkboxes = getSelectableResultCheckboxes();
   checkboxes.forEach((item) => {
     item.checked = false;
@@ -995,7 +1006,7 @@ function updateResultsSelectionUI() {
   const deleteBtn = document.getElementById('resultsDeleteSelected');
   const selectAll = document.getElementById('resultsSelectAll');
   const checkboxes = getSelectableResultCheckboxes();
-  const selectedCount = state.selectedRecordIds.size;
+  const selectedCount = state.selectedRecordKeys.size;
   if (countEl) countEl.textContent = `${selectedCount} seleccionados`;
   if (deleteBtn) deleteBtn.disabled = selectedCount === 0;
   if (selectAll) {
@@ -1011,8 +1022,13 @@ function updateResultsSelectionUI() {
 }
 
 async function confirmDeleteSelectedRecords() {
-  const ids = Array.from(state.selectedRecordIds);
+  const ids = collectSelectedDeleteIds();
+  const selectedCount = state.selectedRecordKeys.size;
   if (!ids.length) return;
+  if (selectedCount !== ids.length) {
+    showResultsStatus('No se puede eliminar: hay registros sin ID único.');
+    return;
+  }
   const confirmed = confirm(`¿Eliminar ${ids.length} registro(s) seleccionados? Esta acción no se puede deshacer.`);
   if (!confirmed) return;
   try {
@@ -1025,6 +1041,20 @@ async function confirmDeleteSelectedRecords() {
     console.error('Resultados · delete', err);
     showResultsStatus(`Error al eliminar: ${err?.message || err}`);
   }
+}
+
+function collectSelectedDeleteIds() {
+  const checkboxes = getSelectableResultCheckboxes();
+  const ids = [];
+  const seen = new Set();
+  checkboxes.forEach((item) => {
+    if (!item.checked) return;
+    const deleteId = item.getAttribute('data-record-delete-id');
+    if (!deleteId || seen.has(deleteId)) return;
+    seen.add(deleteId);
+    ids.push(deleteId);
+  });
+  return ids;
 }
 
 async function deleteBackendRecords(ids = []) {
@@ -1050,14 +1080,21 @@ async function deleteBackendRecords(ids = []) {
   return response.json().catch(() => ({ ok: true }));
 }
 
-function renderResultCard(row) {
+function renderResultCard(row, index, deleteIdCounts) {
   const dateLabel = row.shiftDate ? new Date(row.shiftDate).toLocaleDateString('es-VE') : '--';
   const panelLabel = getPanelLabel(row.panel);
   const lotLabel = row.lotId || row.lote || row.data?.shift?.dailyLot || 'Sin lote';
   const observation = extractObservation(row);
   const variables = extractVariableBadges(row);
-  const recordId = row?.id || row?._id || row?.recordId || row?.data?.id || '';
-  const canSelect = Boolean(recordId);
+  const recordId = getRecordDeleteId(row);
+  const recordKey = buildRecordKey(row, recordId, index);
+  const isUnique = recordId ? (deleteIdCounts?.get(recordId) || 0) === 1 : false;
+  const canSelect = Boolean(recordKey && recordId && isUnique);
+  const selectLabel = !recordId
+    ? 'Sin ID'
+    : isUnique
+      ? 'Seleccionar'
+      : 'ID duplicado';
   return `
     <article class="result-card">
       <header>
@@ -1067,9 +1104,9 @@ function renderResultCard(row) {
         </div>
         <div class="result-card-actions">
           <span class="result-chip">${lotLabel}</span>
-          <label class="result-select" title="${canSelect ? 'Seleccionar registro' : 'Registro sin ID'}">
-            <input type="checkbox" data-record-select data-record-id="${recordId}" ${canSelect ? '' : 'disabled'}>
-            <span>${canSelect ? 'Seleccionar' : 'Sin ID'}</span>
+          <label class="result-select" title="${canSelect ? 'Seleccionar registro' : selectLabel}">
+            <input type="checkbox" data-record-select data-record-key="${recordKey}" data-record-delete-id="${recordId}" ${canSelect ? '' : 'disabled'}>
+            <span>${selectLabel}</span>
           </label>
         </div>
       </header>
@@ -1092,6 +1129,16 @@ function renderResultCard(row) {
       </div>
     </article>
   `;
+}
+
+function getRecordDeleteId(row) {
+  return row?.id || row?._id || row?.recordId || row?.data?.id || '';
+}
+
+function buildRecordKey(row, recordId, index) {
+  const rawDate = row?.timestamp || row?.createdAt || row?.shiftDate || '';
+  const base = recordId || row?.lotId || row?.lote || 'row';
+  return `${base}::${rawDate || 'no-date'}::${index}`;
 }
 
 function extractObservation(row) {
