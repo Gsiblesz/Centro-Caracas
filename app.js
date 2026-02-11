@@ -856,15 +856,33 @@ async function refreshControlChart() {
   try {
     const filters = getResultsFilters();
     const metricSelect = document.getElementById('resultsMetric');
-    const metric = metricSelect ? metricSelect.value : 'overallMs';
+    const selectionValue = metricSelect ? metricSelect.value : 'overallMs';
+    const { metric, panelOverride } = parseControlChartSelection(selectionValue);
+    const effectiveFilters = {
+      ...filters,
+      panel: panelOverride && panelOverride !== 'all' ? panelOverride : filters.panel,
+    };
     showResultsStatus('Calculando gráfica de control...');
-    const chartData = await loadControlChart(filters, metric);
-    renderControlChart(chartData, metric);
+    const chartData = await loadControlChart(effectiveFilters, metric);
+    renderControlChart(chartData, metric, effectiveFilters.panel);
     showResultsStatus('');
   } catch (err) {
     console.error('Resultados · chart', err);
     showResultsStatus(`Error al generar la gráfica: ${err?.message || err}`);
   }
+}
+
+function parseControlChartSelection(value = '') {
+  const raw = String(value || '').trim();
+  if (!raw) return { metric: 'overallMs', panelOverride: 'all' };
+  if (!raw.includes('|')) {
+    return { metric: raw, panelOverride: 'all' };
+  }
+  const [metric, panelOverride] = raw.split('|').map((part) => String(part || '').trim());
+  return {
+    metric: metric || 'overallMs',
+    panelOverride: panelOverride || 'all',
+  };
 }
 
 async function loadBackendRecords(filters) {
@@ -1207,7 +1225,7 @@ function renderSummaryCards(summary) {
   if (countEl) countEl.textContent = summary.count ?? '0';
 }
 
-function renderControlChart(data, metric) {
+function renderControlChart(data, metric, panelKey = 'all') {
   const canvas = document.getElementById('controlChart');
   if (!canvas || !window.Chart) return;
   if (!data || !Array.isArray(data.points) || !data.points.length) {
@@ -1226,6 +1244,10 @@ function renderControlChart(data, metric) {
     return `#${point.id || index + 1}`;
   });
   const values = data.points.map((point) => msToMinutes(point.value));
+  const pointPanels = data.points.map((point) => {
+    const raw = point?.panel ?? point?.panelKey ?? point?.data?.panel ?? point?.panel_id ?? '';
+    return String(raw || '').trim();
+  });
   const cl = msToMinutes(data.centerLine || 0);
   const ucl = msToMinutes(data.ucl || 0);
   const lcl = msToMinutes(data.lcl || 0);
@@ -1279,9 +1301,18 @@ function renderControlChart(data, metric) {
         legend: { display: true },
         tooltip: {
           callbacks: {
+            title(items) {
+              const first = items?.[0];
+              if (!first) return '';
+              const panel = pointPanels[first.dataIndex] || '';
+              const suffix = panel ? ` · ${getPanelLabel(panel)}` : '';
+              return `${first.label}${suffix}`;
+            },
             label(context) {
+              const panel = pointPanels[context.dataIndex] || '';
+              const panelSuffix = panel ? ` (${getPanelLabel(panel)})` : '';
               if (context.datasetIndex === 0) {
-                return `Valor: ${context.formattedValue} min`;
+                return `Valor${panelSuffix}: ${context.formattedValue} min`;
               }
               return `${context.dataset.label}: ${context.formattedValue} min`;
             },
@@ -1300,7 +1331,8 @@ function renderControlChart(data, metric) {
   const foot = document.getElementById('chartFootnote');
   if (foot) {
     const metricLabel = metric === 'durationMs' ? 'Duración máquina' : metric === 'deadMs' ? 'Tiempos muertos' : 'Total general';
-    foot.textContent = `${metricLabel} · CL ${cl.toFixed(2)} min · UCL ${ucl.toFixed(2)} min · LCL ${lcl.toFixed(2)} min (n=${data.count})`;
+    const panelLabel = panelKey && panelKey !== 'all' ? ` · ${getPanelLabel(panelKey)}` : '';
+    foot.textContent = `${metricLabel}${panelLabel} · CL ${cl.toFixed(2)} min · UCL ${ucl.toFixed(2)} min · LCL ${lcl.toFixed(2)} min (n=${data.count})`;
   }
 }
 

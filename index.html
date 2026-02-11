@@ -520,9 +520,27 @@
               <label class="chart-filter">
                 <span>Métrica</span>
                 <select id="resultsMetric">
-                  <option value="overallMs">Total general</option>
-                  <option value="durationMs">Duración máquina</option>
-                  <option value="deadMs">Tiempos muertos</option>
+                  <optgroup label="Total general">
+                    <option value="overallMs|all" selected>Total general (todos)</option>
+                    <option value="overallMs|mixers">Total general · Amasadoras</option>
+                    <option value="overallMs|mesa">Total general · Mesa</option>
+                    <option value="overallMs|fermenter">Total general · Fermentadora</option>
+                    <option value="overallMs|ovens">Total general · Horno</option>
+                  </optgroup>
+                  <optgroup label="Duración máquina">
+                    <option value="durationMs|all">Duración máquina (todos)</option>
+                    <option value="durationMs|mixers">Duración máquina · Amasadoras</option>
+                    <option value="durationMs|mesa">Duración máquina · Mesa</option>
+                    <option value="durationMs|fermenter">Duración máquina · Fermentadora</option>
+                    <option value="durationMs|ovens">Duración máquina · Horno</option>
+                  </optgroup>
+                  <optgroup label="Tiempos muertos">
+                    <option value="deadMs|all">Tiempos muertos (todos)</option>
+                    <option value="deadMs|mixers">Tiempos muertos · Amasadoras</option>
+                    <option value="deadMs|mesa">Tiempos muertos · Mesa</option>
+                    <option value="deadMs|fermenter">Tiempos muertos · Fermentadora</option>
+                    <option value="deadMs|ovens">Tiempos muertos · Horno</option>
+                  </optgroup>
                 </select>
               </label>
               <button type="button" class="ghost-button" id="resultsChartRefresh">Actualizar gráficas</button>
